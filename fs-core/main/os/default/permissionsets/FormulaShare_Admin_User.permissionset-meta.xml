@@ -521,6 +521,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>FormulaShare_Processed_Record_Share__c.Failed_Shared_To_User__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>FormulaShare_Processed_Record_Share__c.FormulaShare_Rule_Name__c</field>
         <readable>true</readable>
     </fieldPermissions>

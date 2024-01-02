@@ -347,4 +347,12 @@
         </columns>
         <masterLabel>Processed Record Shares</masterLabel>
     </sections>
+    <sections>
+        <columns>
+            <checkedByDefault>false</checkedByDefault>
+            <field>Failed_Shared_To_User__c</field>
+            <table>FormulaShare_Log__c.FormulaShare_Processed_Records__r.FormulaShare_Processed_Record_Shares__r</table>
+        </columns>
+        <masterLabel>FormulaShare Processed Record Shares</masterLabel>
+    </sections>
 </ReportType>

@@ -264,6 +264,8 @@ public virtual inherited sharing class FormulaShareProcessedRecordShare {
         prs.Status__c = pse.Status__c;
         prs.Status_Reason__c = pse.Failed_Status_Reason__c;
 
+        this.setFailedSharedToUser(prs, pse.Failed_Status_Reason__c);
+
         // Populate share with type and relevant fields depending on user or group sharing
         // Check whether user or group share
         if(pse.Shared_to_Id__c != null) {
@@ -296,4 +298,9 @@ public virtual inherited sharing class FormulaShareProcessedRecordShare {
         return prs;
     }    
 
+    private void setFailedSharedToUser(FormulaShare_Processed_Record_Share__c prs, String failedStatusReason){
+        if(failedStatusReason != null && failedStatusReason.startsWith('No active user found with id')){
+            prs.Failed_Shared_To_User__c = failedStatusReason.substringBetween('\'');
+        }
+    }
 }
