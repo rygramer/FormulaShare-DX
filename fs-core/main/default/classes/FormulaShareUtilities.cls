@@ -19,33 +19,38 @@
 *CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 **/
 
-public with sharing class FormulaShareUtilities {
+public inherited sharing class FormulaShareUtilities {
 
-    // Method returns the namespace of the package with underscores appended
-    // Used to determine what to add to object and field names
-    static String classInPackage = 'FormulaShareUnitOfWorkDML';
+	// If app is expected to be used within a namespace, check whether a class exists with this namespace
+	// and if so then assume we're operating within a NS, otherwise assume we're not in a namespace.
+	// Approach allows same version of FormulaShare to be run within a namespace and outside of
+	// a namespace (e.g. metadata deployment to sandbox for testing)
     static String namespacePrefix = '';
 	static Boolean namespaceSet = false;
-	
-	@AuraEnabled(cacheable=true)
     public static String getNamespacePrefix() {
         if(!namespaceSet) {
-			String expectedNamespace = FormulaShareNamespaceInfo.getExpectedNamespace();
 
-			// If app is expected to be used within a namespace, check whether a class exists with this namespace
-			// and if so then assume we're operating within a NS, otherwise assume we're not in a namespace.
-			// Approach allows same version of FormulaShare to be run within a namespace and outside of
-			// a namespace (e.g. metadata deployment to sandbox for testing)
-			if(expectedNamespace != null) {
-				List<ApexClass> nsClassList = [
-					SELECT Id from ApexClass 
-					WHERE Name = :classInPackage 
-					AND NamespacePrefix = :expectedNamespace
-					WITH SECURITY_ENFORCED];
-				if(!nsClassList.isEmpty()) {
-					namespacePrefix = expectedNamespace + '__';
-				}
+			// Refactored to avoid query
+			String uowClassName = FormulaShareUnitOfWorkDML.class.getName();
+			if(uowClassName.contains('.')) {
+				namespacePrefix = uowClassName.split('\\.')[0] + '__';	// Escape required
 			}
+
+			// Previous approach (replaced to avoid need to query system object)
+			// This approach would have allowed for separate installed packages with the same class names
+			// However this isn't required with new Lite/Enterprise/Unlimited approach
+			//
+//			String expectedNamespace = FormulaShareNamespaceInfo.getExpectedNamespace();
+//			if(expectedNamespace != null) {
+//				List<ApexClass> nsClassList = [
+//					SELECT Id from ApexClass 
+//					WHERE Name = :classInPackage 
+//					AND NamespacePrefix = :expectedNamespace
+//					WITH SECURITY_ENFORCED];
+//				if(!nsClassList.isEmpty()) {
+//					namespacePrefix = expectedNamespace + '__';
+//				}
+//			}
 
             namespaceSet = true;
         }
@@ -401,8 +406,9 @@ public with sharing class FormulaShareUtilities {
 		return true;
 	}
 
+	// -------------------- SObject and share type and name conversion methods -------------------- //
 
-	public static Schema.SObjectType getShareObject(Schema.SObjectType type) {
+	private static String getShareObjectNameFromSObject(Schema.SObjectType type) {
 		Schema.SObjectType shareObject;
 		String typeName = type.getDescribe().getName();
 		
@@ -411,10 +417,40 @@ public with sharing class FormulaShareUtilities {
 			typeName = typeName.left(typeName.length()-1);
 		}
 
-		// Append "Share" to get the right object share name
-		shareObject = globalDescribe.get(typeName+'Share');
-		
+		return typeName + 'Share';
+	}
+
+	public static String getShareObjectNameFromSObjectName(String sObjectName) {
+		Schema.SObjectType type = getSObjectTypeFromName(sObjectName);
+		return getShareObjectNameFromSObject(type);
+	}
+
+	public static Schema.SObjectType getShareObject(Schema.SObjectType type) {
+		String shareObjectName = getShareObjectNameFromSObject(type);
+		Schema.SObjectType shareObject = globalDescribe.get(shareObjectName);
 		return shareObject;
+	}
+
+
+	private static String getSObjectNameFromShareObjectName(String shareObjectName) {
+		String sObjectName = '';
+
+		// For custom objects, remove "__Share" and append "__c"
+		if(shareObjectName.right(7) == '__Share') {
+			sObjectName = shareObjectName.left(shareObjectName.length()-7) + '__c';
+		}
+		// For standard objects, remove "Share"
+		else {
+			sObjectName = shareObjectName.left(shareObjectName.length()-5);
+		}
+
+		return sObjectName;		
+	}
+
+	public static Schema.SObjectType getSObjectFromShareObjectName(String shareObjectName) {
+		String sObjectName = getSObjectNameFromShareObjectName(shareObjectName);
+		Schema.SObjectType sharedObject = globalDescribe.get(sObjectName);
+		return sharedObject;
 	}
 
 
@@ -470,24 +506,8 @@ public with sharing class FormulaShareUtilities {
         return queryString;
     }
 
-	// Used by controller to build links to setup menu items
-	@AuraEnabled(cacheable=true)
-	public static String getLightningDomain(){
-        return getMyDomain() + '.lightning.force.com';
-    }
-
-	@AuraEnabled(cacheable=true)
-	public static String getClassicDomain(){
-        return URL.getSalesforceBaseUrl().toExternalForm();
-    }
-
-    public static String getMyDomain(){
-        return URL.getOrgDomainUrl().getHost().split('\\.')[0].toLowerCase();
-	}
-
 
 	// Return a map of all sharing reasons for a particular object
-	@AuraEnabled(cacheable=true)
 	public static Map<String,String> getSharingReasons(String objectApiName) {
 		Map<String,String> reasons = new Map<String,String>();
 
@@ -509,7 +529,6 @@ public with sharing class FormulaShareUtilities {
 
 
 	private static Boolean contactSharingControlledByAccount;
-	@AuraEnabled(cacheable=true)
 	public static Boolean isContactSharingControlledByAccount() {
 		if(contactSharingControlledByAccount == null) {
 			Schema.SObjectType accountShareType = getSObjectTypeFromName('AccountShare');
